@@ -13,8 +13,6 @@ module.exports = createCoreController('api::game.game', ({strapi}) => ({
           
           await strapi.service('api::game.game').populate()
 
-          console.log(ctx.query)
-
           ctx.send("Finish Populating!");
         } catch (err) {
           ctx.body = err;
