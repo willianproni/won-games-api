@@ -22,6 +22,66 @@ async function getGameInfo(slug) {
     }
 }
 
+async function getByName(name, entityName) {
+    const item = await strapi.db
+        .query(`api::${entityName}.${entityName}`)
+        .findOne({
+            where: { name: name }
+        })
+
+    return item ? true : false
+}
+
+async function create(name, entityName) {
+    const item = await getByName(name, entityName);
+
+    if (!item) {
+        await strapi.entityService
+            .create(`api::${entityName}.${entityName}`, {
+                data: {
+                    name: name,
+                    slug: slugify(name).toLowerCase()
+                }
+            })
+    }
+}
+
+async function createManyToManyData(products) {
+    const developer = {};
+    const publisher = {};
+    const categories = {};
+    const platforms = {};
+
+    products.forEach((product) => {
+        const { developers, publishers, genres, operatingSystems } = product;
+
+        genres &&
+            genres?.forEach((item) => {
+                categories[item.name] = true
+            })
+
+        operatingSystems &&
+            operatingSystems?.forEach((item) => {
+                platforms[item] = true
+            })
+
+        developers?.forEach((item) => {
+            developer[item] = true
+        })
+
+        publishers?.forEach((item) => {
+            publisher[item] = true
+        })
+
+        return Promise.all([
+            ...Object.keys(developer).map((developer) => create(developer, 'developer')),
+            ...Object.keys(publisher).map((publisher) => create(publisher, 'publisher')),
+            ...Object.keys(categories).map((categories) => create(categories, 'category')),
+            ...Object.keys(platforms).map((platforms) => create(platforms, 'platform')),
+        ])
+    });
+}
+
 module.exports = createCoreService('api::game.game', ({ strapi }) => ({
 
     async populate(params) {
@@ -29,23 +89,18 @@ module.exports = createCoreService('api::game.game', ({ strapi }) => ({
 
         const { data: { products } } = await axios.get(gogApiUrl)
 
-        await strapi.entityService
-            .create('api::publisher.publisher', {
-                data: {
-                    name: products[1].publishers[0],
-                    slug: slugify(products[1].publishers[0]).toLowerCase()
-                }
-            })
+        await createManyToManyData([products[1], products[2]])
 
-            await strapi.entityService
-            .create('api::developer.developer', {
-                data: {
-                    name: products[1].developer,
-                    slug: slugify(products[1].developer).toLowerCase()
-                }
+        products.map(async products => {
+            products.developers.map(async developer => {
+                // await create(developer, 'developer')
             })
+        })
+
+        products.map(async products => {
+            products.publishers.map(async publisher => {
+                // await create(publisher, 'publisher')
+            })
+        })
     }
-
-    // console.log(await getGameInfo(products[0].slug.replaceAll('-', '_')));
-
 }));
