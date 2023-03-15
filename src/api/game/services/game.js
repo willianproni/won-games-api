@@ -23,13 +23,31 @@ async function getGameInfo(slug) {
 }
 
 async function getByName(name, entityName) {
-    const item = await strapi.db
-        .query(`api::${entityName}.${entityName}`)
-        .findOne({
-            where: { name: name }
-        })
+    try {
+        const item = await strapi.db
+            .query(`api::${entityName}.${entityName}`)
+            .findOne({
+                where: { name: name }
+            })
 
-    return item ? true : false
+        return item ? item.id : false
+    } catch (err) {
+        console.log('ERRO: ', err)
+    }
+}
+
+async function getByNameTest(name, entityName) {
+    try {
+        const item = await strapi.db
+            .query(`api::${entityName}.${entityName}`)
+            .findOne({
+                where: { name: name }
+            })
+
+        return item ? item : false
+    } catch (err) {
+        console.log('ERRO: ', err)
+    }
 }
 
 async function create(name, entityName) {
@@ -40,46 +58,90 @@ async function create(name, entityName) {
             .create(`api::${entityName}.${entityName}`, {
                 data: {
                     name: name,
-                    slug: slugify(name).toLowerCase()
+                    slug: slugify(name).toLowerCase().replaceAll('-', '_')
                 }
             })
     }
 }
 
 async function createManyToManyData(products) {
-    const developer = {};
-    const publisher = {};
-    const categories = {};
-    const platforms = {};
+    try {
+        const developer = {};
+        const publisher = {};
+        const categories = {};
+        const platforms = {};
 
-    products.forEach((product) => {
-        const { developers, publishers, genres, operatingSystems } = product;
+        products.forEach(async (product) => {
+            const { developers, publishers, genres, operatingSystems } = product;
 
-        genres &&
-            genres?.forEach((item) => {
-                categories[item.name] = true
+            genres &&
+                genres?.forEach((item) => {
+                    categories[item.name] = true
+                })
+
+            operatingSystems &&
+                operatingSystems?.forEach((item) => {
+                    platforms[item] = true
+                })
+
+            developers?.forEach((item) => {
+                developer[item] = true
             })
 
-        operatingSystems &&
-            operatingSystems?.forEach((item) => {
-                platforms[item] = true
+            publishers?.forEach((item) => {
+                publisher[item] = true
             })
 
-        developers?.forEach((item) => {
-            developer[item] = true
-        })
+            Promise.all([
+                ...Object.keys(developer).map((developer) => create(developer, 'developer')),
+                ...Object.keys(publisher).map((publisher) => create(publisher, 'publisher')),
+                ...Object.keys(categories).map((categories) => create(categories, 'category')),
+                ...Object.keys(platforms).map((platforms) => create(platforms, 'platform')),
+            ])
+        });
+    }
+    catch (err) {
+        console.log('ERRO: ', { err })
+    } finally {
+        console.log('createManyToManyData Finish')
+    }
 
-        publishers?.forEach((item) => {
-            publisher[item] = true
-        })
+}
 
-        return Promise.all([
-            ...Object.keys(developer).map((developer) => create(developer, 'developer')),
-            ...Object.keys(publisher).map((publisher) => create(publisher, 'publisher')),
-            ...Object.keys(categories).map((categories) => create(categories, 'category')),
-            ...Object.keys(platforms).map((platforms) => create(platforms, 'platform')),
-        ])
-    });
+async function createGames(products) {
+    try {
+        await Promise.all(
+            products.map(async (product) => {
+                const item = await getByName(product.title, 'game')
+
+                if (!item) {
+                    console.info(`Creating: ${product.title}...`)
+
+                    const game = await strapi.entityService.create('api::game.game', {
+                        data: {
+                            name: product.title,
+                            slug: product.slug.replaceAll('-', '_'),
+                            price: Number(product.price.base.replace('R$', '')),
+                            release_date: product.releaseDate.replaceAll('.', '-'),
+                            categories: await Promise.all(product.genres.map(async (item) =>
+                                await getByName(item.name, 'category'))),
+                            platforms: await Promise.all(product.operatingSystems.map(async (item) =>
+                                await getByName(item, 'platform'))),
+                            developers: await Promise.all(product.developers.map(async (item) =>
+                                await getByName(item, 'developer'))),
+                            publisher: [await getByName(product.publishers, 'publisher')],
+                            ...(await getGameInfo(product.slug.replaceAll('-', '_')))
+                        }
+                    })
+                    return game
+                }
+            })
+        )
+    } catch (err) {
+        console.log('ERRO: ', { err })
+    } finally {
+        console.log('createGames Finish')
+    }
 }
 
 module.exports = createCoreService('api::game.game', ({ strapi }) => ({
@@ -89,18 +151,14 @@ module.exports = createCoreService('api::game.game', ({ strapi }) => ({
 
         const { data: { products } } = await axios.get(gogApiUrl)
 
-        await createManyToManyData([products[1], products[2]])
+        await createManyToManyData([products[1], products[2], products[3]])
+    },
 
-        products.map(async products => {
-            products.developers.map(async developer => {
-                // await create(developer, 'developer')
-            })
-        })
+    async populateGames(params) {
+        const gogApiUrl = `https://catalog.gog.com/v1/catalog?limit=48&order=desc%3Atrending&productType=in%3Agame%2Cpack%2Cdlc%2Cextras&page=1&countryCode=BR&locale=en-US&currencyCode=BRL`
 
-        products.map(async products => {
-            products.publishers.map(async publisher => {
-                // await create(publisher, 'publisher')
-            })
-        })
+        const { data: { products } } = await axios.get(gogApiUrl)
+
+        await createGames([products[1], products[2], products[3]])
     }
 }));
