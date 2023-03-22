@@ -9,9 +9,14 @@ const { createCoreController } = require('@strapi/strapi').factories;
 module.exports = createCoreController('api::game.game', ({ strapi }) => ({
   async populate(ctx) {
     try {
-      console.log("Start to populate...")
+      console.log("Start to populate attributes...")
 
-      await strapi.service('api::game.game').populate()
+      const options = {
+        page: "1",
+        ...ctx.query
+      }
+
+      await strapi.service('api::game.game').populate(options)
 
       ctx.send("Finish Populating!");
     } catch (err) {
@@ -21,9 +26,14 @@ module.exports = createCoreController('api::game.game', ({ strapi }) => ({
 
   async populateGames(ctx) {
     try {
-      console.log("Start to populate...")
+      console.log("Start to populate games...")
 
-      await strapi.service('api::game.game').populateGames()
+      const options = {
+        page: "1",
+        ...ctx.query
+      }
+
+      await strapi.service('api::game.game').populateGames(options)
 
       ctx.send("Finish Populating!");
     } catch (err) {
