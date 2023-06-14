@@ -1,3 +1,6 @@
+Projeto Criado para popular o Strapi (um serviço de gerenciamento de conteúdo) com informações de jogos, desenvolvedores, imagens.
+Com o proposito de desenvolver futuramente um Front-end capaz de consumir esse dados do Strapi utilizando graphQL
+<hr>
 # 🚀 Getting started with Strapi
 
 Strapi comes with a full featured [Command Line Interface](https://docs.strapi.io/developer-docs/latest/developer-resources/cli/CLI.html) (CLI) which lets you scaffold and manage your project in seconds.
